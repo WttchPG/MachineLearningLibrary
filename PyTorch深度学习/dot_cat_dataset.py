@@ -1,8 +1,14 @@
+from glob import glob
 from torch.utils.data import Dataset, DataLoader
 import os.path
 
+DOG_CAT_DATASET_PATH = "/Volumes/WTTCH/数据集/archive/PetImages"
+
 
 class DogAndCatsDataSet(Dataset):
+    """
+    继承 DataSet
+    """
     def __init__(self, root_path, size=(244, 244)):
         self._root_path = root_path
         self._size = size
@@ -20,3 +26,5 @@ class DogAndCatsDataSet(Dataset):
             return self._dog_files[idx - cat_size], "Dog"
         else:
             return self._cat_files[idx], "Cat"
+
+
