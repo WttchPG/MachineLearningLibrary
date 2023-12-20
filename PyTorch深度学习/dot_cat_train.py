@@ -146,8 +146,14 @@ class DogCatModule:
 
             if batch % 100 == 0:
                 # 100 批打印一次
-                print(f'[{current}/{size}]: loss: {loss}  f1 score: {f1_score(y.cpu().numpy(), pred.argmax(1).cpu().numpy())}')
+                print(
+                    f'[{current}/{size}]: loss: {loss}  f1 score: {f1_score(y.cpu().numpy(), pred.argmax(1).cpu().numpy())}')
             # self._train_message_sender.epoch_finish(batch + 1, size, 0, loss)
+
+            if torch.backends.mps.is_available():
+                # 只训练一个 batch
+                print("Train on Mac, break...")
+                break
 
     def test_model(self):
         self.resnet.eval()
@@ -165,6 +171,8 @@ class DogCatModule:
                 pred = self.resnet(X)
                 test_loss += self.cross_entropy_loss_fn(pred, y).item()
                 correct += (pred.argmax(1) == y).type(torch.float).sum().item()
+                if torch.backends.mps.is_available():
+                    print("Test on Mac, break...")
 
         test_loss /= num_batches
         correct /= size
