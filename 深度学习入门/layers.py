@@ -1,4 +1,7 @@
 import numpy as np
+from sklearn.utils.extmath import softmax
+
+from loss_functions import cross_entropy_error
 
 
 class AddLayer:
@@ -139,5 +142,65 @@ class Sigmoid:
 
         """
         dx = dout * (1.0 - self.out) * self.out
+
+        return dx
+
+
+class Affine:
+    W: np.ndarray
+    b: np.ndarray
+    x: np.ndarray
+    dw: np.ndarray
+    db: np.ndarray
+
+    def __init__(self, W: np.ndarray, b: np.ndarray):
+        # 不是深拷贝, 实际更新的时候，这里的值也会更新
+        self.W = W
+        self.b = b
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        self.x = x
+
+        return x @ self.W + self.b
+
+    def backward(self, dout: np.ndarray):
+        """
+        反向传播。
+        dout(N, T)
+        f = x(N, M) * W(M, T) + b(N, T)
+        dL / dx (N, M) = dL / df * df / dx = dout (N, T) * W^T (T, M)
+        dL / dw (M, T) = dL / df * df / dw = x^T(M, N) * dout(N, T)
+        dL / db (T) = dL / df * df / db = sum(dout (N, T), axis=0)
+        Args:
+            dout:
+
+        Returns:
+
+        """
+        dx = dout @ self.W.T
+        self.dw = self.x.T @ dout
+        self.db = dout.sum(axis=0)
+
+        return dx
+
+
+class SoftmaxWithLoss:
+    loss: float
+    y: np.ndarray
+    t: np.ndarray
+
+    def __init__(self):
+        pass
+
+    def forward(self, x: np.ndarray, t: np.ndarray) -> float:
+        self.t = t
+        self.y = softmax(x)
+        self.loss = cross_entropy_error(self.y, self.t)
+
+        return self.loss
+
+    def backward(self, dout=1):
+        batch_size = self.t.shape[0]
+        dx = (self.y - self.t) / batch_size
 
         return dx

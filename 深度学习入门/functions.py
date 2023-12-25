@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.preprocessing import Normalizer
 
 
 def sigmoid(z: np.ndarray) -> float:
@@ -12,7 +13,8 @@ def sigmoid(z: np.ndarray) -> float:
 
 
 def softmax(x: np.ndarray) -> np.ndarray:
-    exp_x = np.exp(x)
+    x = x - x.max()
+    exp_x = np.exp(x)  # 防止溢出
     sum_exp = np.sum(exp_x)
     y = exp_x / sum_exp
     return y

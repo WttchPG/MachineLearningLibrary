@@ -1,8 +1,11 @@
+from collections import OrderedDict
+
 import numpy as np
 
 from functions import sigmoid, softmax
 from loss_functions import cross_entropy_error
 from gradient import numerical_gradient
+from layers import Affine, SoftmaxWithLoss, Relu, Sigmoid
 
 
 class TwoLayerNet:
@@ -26,6 +29,11 @@ class TwoLayerNet:
             'W2': weight_init_std * np.random.randn(hidden_size, output_size),
             'b2': np.zeros(output_size)
         }
+        self.layers = OrderedDict()
+        self.layers['Affine1'] = Affine(self.params['W1'], self.params['b1'])
+        self.layers['Relu1'] = Relu()
+        self.layers['Affine2'] = Affine(self.params['W2'], self.params['b2'])
+        self.lastLayer = SoftmaxWithLoss()
 
     def predict(self, x: np.ndarray):
         """
@@ -36,19 +44,10 @@ class TwoLayerNet:
         Returns:
             预测的结果
         """
-        # 获取两层权重
-        W1, W2 = self.params['W1'], self.params['W2']
-        # 获取两个偏置参数
-        b1, b2 = self.params['b1'], self.params['b2']
+        for layer in self.layers.values():
+            x = layer.forward(x)
 
-        a1 = x @ W1 + b1
-        # 第一层使用 sigmoid 激活函数
-        z1 = sigmoid(a1)
-        # 输出层使用 softmax 激活函数
-        a2 = z1 @ W2 + b2
-        y = softmax(a2)
-
-        return y
+        return x
 
     def loss(self, x: np.ndarray, t: np.ndarray):
         """
@@ -62,24 +61,45 @@ class TwoLayerNet:
         """
         pred = self.predict(x)
 
-        return cross_entropy_error(pred, t)
+        return self.lastLayer.forward(pred, t)
 
-    def numerical_gradient(self, x: np.ndarray, t: np.ndarray):
-        """
-        计算数值微分梯度
-        Args:
-            x: 输入数据
-            t: 监督数据
-
-        Returns:
-            使用输入数据和监督数据计算权重和偏置参数的梯度
-        """
+    def graident1(self, x, t):
         loss_w = lambda w: self.loss(x, t)
-        grads = {
+        return {
             'W1': numerical_gradient(loss_w, self.params['W1']),
             'b1': numerical_gradient(loss_w, self.params['b1']),
             'W2': numerical_gradient(loss_w, self.params['W2']),
             'b2': numerical_gradient(loss_w, self.params['b2'])
         }
 
+    def gradient(self, x: np.ndarray, t: np.ndarray):
+        # forward
+        loss = self.loss(x, t)
+
+        # backward
+        dout = loss
+        dout = self.lastLayer.backward(dout)
+
+        layers = list(self.layers.values())
+        layers.reverse()
+
+        for layer in layers:
+            dout = layer.backward(dout)
+
+        grads = {
+            'W1': self.layers['Affine1'].dw,
+            'b1': self.layers['Affine1'].db,
+            'W2': self.layers['Affine2'].dw,
+            'b2': self.layers['Affine2'].db,
+        }
+
         return grads
+
+    def accuracy(self, x: np.ndarray, t: np.ndarray):
+        y = self.predict(x)
+        y = np.argmax(y, axis=1)
+        if t.ndim != 1:
+            t = np.argmax(t, axis=1)
+
+        accuracy = np.sum(y == t) / float(x.shape[0])
+        return accuracy
