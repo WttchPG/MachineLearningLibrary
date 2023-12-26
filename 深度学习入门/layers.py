@@ -1,3 +1,6 @@
+import abc
+from typing import Dict
+
 import numpy as np
 # from sklearn.utils.extmath import softmax
 
@@ -143,6 +146,146 @@ class Sigmoid:
 
         """
         dx = dout * (1.0 - self.out) * self.out
+
+        return dx
+
+
+class Layer(abc.ABC):
+
+    def __init__(self, input_size: int, output_size: int, name: str = ""):
+        self.input_size = input_size
+        self.output_size = output_size
+        self.name = name
+
+    def init_params(self, *args, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        pass
+
+    @abc.abstractmethod
+    def backward(self, dout):
+        pass
+
+    def params(self) -> Dict:
+        return {}
+
+    def grad_params(self) -> Dict:
+        return {}
+
+
+class AffineLayer(Layer):
+    W: np.ndarray
+    b: np.ndarray
+    x: np.ndarray
+    dW: np.ndarray
+    db: np.ndarray
+
+    def __init__(self, name: str, input_size: int, output_size: int, weight_init_std: float = 0.01):
+        super().__init__(input_size=input_size, output_size=output_size, name=name)
+        self.weight_init_std = weight_init_std
+
+    def init_params(self, *args, **kwargs):
+        self.W = self.weight_init_std * np.random.randn(self.input_size, self.output_size)
+        self.b = np.zeros(self.output_size)
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        self.x = x
+
+        return x @ self.W + self.b
+
+    def backward(self, dout: np.ndarray) -> np.ndarray:
+        """
+        反向传播。
+        dout(N, T)
+        f = x(N, M) * W(M, T) + b(N, T)
+        dL / dx (N, M) = dL / df * df / dx = dout (N, T) * W^T (T, M)
+        dL / dw (M, T) = dL / df * df / dw = x^T(M, N) * dout(N, T)
+        dL / db (T) = dL / df * df / db = sum(dout (N, T), axis=0)
+        Args:
+            dout:
+
+        Returns:
+
+        """
+        dx = dout @ self.W.T
+        self.dW = self.x.T @ dout
+        self.db = dout.sum(axis=0)
+
+        return dx
+
+    def params(self) -> Dict:
+        return {
+            "W": self.W,
+            "b": self.b
+        }
+
+    def grad_params(self) -> Dict:
+        return {
+            'W': self.dW,
+            'b': self.db
+        }
+
+
+class ReluLayer(Layer):
+    mask: np.ndarray
+
+    def __init__(self, name: str, size: int):
+        super().__init__(size, size, name=name)
+
+    def init_params(self, *args, **kwargs):
+        pass
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        self.mask = (x <= 0)
+        out = x.copy()
+        out[self.mask] = 0
+
+        return out
+
+    def backward(self, dout: np.ndarray) -> np.ndarray:
+        """
+        反向传播。
+        relu: x > 0: y = x; x <= 0: y = 0
+        链式求导:
+            x > 0: dL / dy * dy / dx = dout * 1
+            x <= 0: dL / dy * dy / dx = 0
+        Args:
+            dout:
+
+        Returns:
+            结果对反向的影响。
+                x > 0: x 对 dout 的影响倍数为 dout * 1; 如果 dout 改变 1, 则 x 值改变  1 / (dout * 1)
+                x <= 0: x 对 dout 的影响为 0
+        """
+        dout[self.mask] = 0
+        dx = dout
+
+        return dx
+
+
+class SoftmaxWithLossLayer(Layer):
+    loss: float
+    y: np.ndarray
+    t: np.ndarray
+
+    def __init__(self, name: str):
+        super().__init__(0, 0, name)
+
+    def init_params(self, *args, **kwargs):
+        pass
+
+    def forward(self, x: np.ndarray, t: np.ndarray) -> float:
+        self.t = t
+        self.y = softmax(x)
+        self.loss = cross_entropy_error(self.y, self.t)
+
+        return self.loss
+
+    def backward(self, dout=1):
+        batch_size = self.t.shape[0]
+        dx = (self.y - self.t) / batch_size
 
         return dx
 

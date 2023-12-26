@@ -1,5 +1,5 @@
 import abc
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 
@@ -25,9 +25,10 @@ class SGD(Optimizer):
     def __init__(self, lr=0.01):
         self.lr = lr
 
-    def update(self, params: Dict, grad: Dict):
-        for key in params.keys():
-            params[key] -= self.lr * grad[key]
+    def update(self, params: Dict[str, Dict], grad: Dict[str, Dict[str, np.ndarray]]):
+        for layer, layer_params in params.items():
+            for key, val in layer_params.items():
+                params[layer][key] -= self.lr * grad[layer][key]
 
 
 class Momentum(Optimizer):
@@ -41,13 +42,15 @@ class Momentum(Optimizer):
         self.lr = lr
         self.momentum = momentum
 
-    def update(self, params: Dict, grad: Dict):
+    def update(self, params: Dict[str, Dict], grad: Dict[str, Dict[str, np.ndarray]]):
         if self.v is None:
-            self.v = {key: np.zeros_like(val) for key, val in params.items()}
+            self.v = {layer: {key: np.zeros_like(val) for key, val in layer_params.items()}
+                      for layer, layer_params in params.items()}
 
-        for key in params.keys():
-            self.v[key] = self.momentum * self.v[key] - self.lr * grad[key]
-            params[key] += self.v[key]
+        for layer, layer_params in params.items():
+            for key, val in layer_params.items():
+                self.v[layer][key] = self.momentum * self.v[layer][key] - self.lr * grad[layer][key]
+                params[layer][key] += self.v[layer][key]
 
 
 class AdaGrad(Optimizer):
@@ -55,18 +58,21 @@ class AdaGrad(Optimizer):
     Adaptive Grad.
     """
 
-    h: Dict[str, np.ndarray]
+    h: Optional[Dict[str, Dict[str, np.ndarray]]]
 
     def __init__(self, lr=0.01):
         self.lr = lr
+        self.h = None
 
-    def update(self, params: Dict[str, np.ndarray], grad: Dict[str, np.ndarray]):
+    def update(self, params: Dict[str, Dict], grad: Dict[str, Dict[str, np.ndarray]]):
         if self.h is None:
-            self.h = {key: np.zeros_like(val) for key, val in params.items()}
+            self.h = {layer: {key: np.zeros_like(val) for key, val in layer_params.items()}
+                      for layer, layer_params in params.items()}
 
-        for key in params.keys():
-            self.h[key] += grad[key] * grad[key]
-            params[key] -= self.lr * grad[key] / (np.sqrt(self.h[key]) + 1e-7)
+        for layer, layer_params in params.items():
+            for key, val in layer_params.items():
+                self.h[layer][key] += grad[layer][key] * grad[layer][key]
+                params[layer][key] -= self.lr * grad[layer][key] / (np.sqrt(self.h[layer][key]) + 1e-7)
 
 
 class Adam(Optimizer):
@@ -82,15 +88,23 @@ class Adam(Optimizer):
         self.m = None
         self.v = None
 
-    def update(self, params: Dict, grads: Dict):
+    def update(self, params: Dict[str, Dict], grads: Dict[str, Dict]):
         if self.m is None:
-            self.m = {key: np.zeros_like(val) for key, val in params.items()}
-            self.v = {key: np.zeros_like(val) for key, val in params.items()}
+            self.m = {}
+            self.v = {}
+            for layer, layer_params in params.items():
+                self.m[layer] = {key: np.zeros_like(val) for key, val in layer_params.items()}
+                self.v[layer] = {key: np.zeros_like(val) for key, val in layer_params.items()}
+
         self.iter += 1
         lr_t = self.lr * np.sqrt(1.0 - self.beta2 ** self.iter) / (1.0 - self.beta1 ** self.iter)
 
-        for key in params.keys():
-            self.m[key] += (1 - self.beta1) * (grads[key] - self.m[key])
-            self.v[key] += (1 - self.beta2) * (grads[key] ** 2 - self.v[key])
+        for layer_key in params.keys():
+            for layer_param in params[layer_key]:
+                self.m[layer_key][layer_param] += (1 - self.beta1) * (
+                        grads[layer_key][layer_param] - self.m[layer_key][layer_param])
+                self.v[layer_key][layer_param] += (1 - self.beta2) * (
+                        grads[layer_key][layer_param] ** 2 - self.v[layer_key][layer_param])
 
-            params[key] -= lr_t * self.m[key] / (np.sqrt(self.v[key]) + 1e-7)
+                params[layer_key][layer_param] -= lr_t * self.m[layer_key][layer_param] / (
+                        np.sqrt(self.v[layer_key][layer_param]) + 1e-7)
