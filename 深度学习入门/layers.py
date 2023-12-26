@@ -1,7 +1,8 @@
 import numpy as np
-from sklearn.utils.extmath import softmax
+# from sklearn.utils.extmath import softmax
 
 from loss_functions import cross_entropy_error
+from functions import softmax
 
 
 class AddLayer:
