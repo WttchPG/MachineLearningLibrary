@@ -3,10 +3,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
+from datasets import root_path
 from utils.torch_util import get_device
-
-# 数据集根目录
-root_path = "/Volumes/WTTCH/datasets"
 
 
 class HousePriceAdvancedRegressionTechniquesDataset(Dataset):
